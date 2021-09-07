@@ -6,6 +6,7 @@
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
+#define DEFAULT_AMOUNT_OF_BUFFERS_TO_GENERATE 1
 
 
 
@@ -48,22 +49,32 @@ void processInput(GLFWwindow *window)
 }
 
 
-unsigned int bindVbo(float vertices[])
+unsigned int bindVbo(float vertices[], unsigned int numberOfTriangles)
 {
-    unsigned int VBO, buffersToGenerate = 1;
-    glGenBuffers(buffersToGenerate, &VBO);
+    unsigned int VBO;
+    glGenBuffers(DEFAULT_AMOUNT_OF_BUFFERS_TO_GENERATE, &VBO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, 36, vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 24 * numberOfTriangles, vertices, GL_STATIC_DRAW);
     return VBO;
 }
 
 
 unsigned int bindVao()
 {
-    unsigned int VAO, buffersToGenerate = 1;
-    glGenVertexArrays(buffersToGenerate, &VAO);
+    unsigned int VAO;
+    glGenVertexArrays(DEFAULT_AMOUNT_OF_BUFFERS_TO_GENERATE, &VAO);
     glBindVertexArray(VAO);
     return VAO;
+}
+
+
+unsigned int bindEbo(unsigned int indices[], unsigned int numberOfIndices)
+{
+    unsigned int EBO;
+    glGenBuffers(DEFAULT_AMOUNT_OF_BUFFERS_TO_GENERATE, &EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4 * numberOfIndices, indices, GL_STATIC_DRAW);
+    return EBO;
 }
 
 
@@ -174,7 +185,6 @@ int main(void)
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
     unsigned int shaderProgram = createShaderProgram();
-
     unsigned int vertexShader = compileVertexShader();
     unsigned int fragmentShader = compileFragmentShader();
 
@@ -182,15 +192,23 @@ int main(void)
 
     // In OpenGL (or shaders) the x,y,z Cartesian plane is in the middle of the screen, meaning that
     // upwards in the Y axis uses positive values.
+
+    float triangle_size_in_normalized_unit_vectors = 0.5f;
     float vertices[] = {
-            -0.5f, -0.5f, 0.0f,
-            0.5f, -0.5f, 0.0f,
-            0.0, 0.5f, 0.0f
+            triangle_size_in_normalized_unit_vectors, triangle_size_in_normalized_unit_vectors, 0.0f,
+            triangle_size_in_normalized_unit_vectors, -triangle_size_in_normalized_unit_vectors, 0.0f,
+            -triangle_size_in_normalized_unit_vectors, -triangle_size_in_normalized_unit_vectors, 0.0f,
+            -triangle_size_in_normalized_unit_vectors, triangle_size_in_normalized_unit_vectors, 0.0f
     };
 
-    unsigned int VBO, VAO;
-    VBO = bindVbo(vertices);
-    VAO = bindVao();
+    unsigned int indices[] = {
+            0, 1, 3,
+            1, 2, 3
+    };
+
+    unsigned int VBO = bindVbo(vertices, 3);
+    unsigned int VAO = bindVao();
+    unsigned int EBO = bindEbo(indices, 6);
 
     interpretVertexData();
 
@@ -203,7 +221,7 @@ int main(void)
 
         useProgram(shaderProgram);
         glBindVertexArray(VAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -211,6 +229,7 @@ int main(void)
 
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
     glDeleteShader(shaderProgram);
 
     glfwTerminate();
