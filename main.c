@@ -4,20 +4,39 @@
 #include <stdbool.h>
 
 
-# define WINDOW_HEIGHT 1080
-# define WINDOW_WIDTH 1920
+#define WINDOW_WIDTH 800
+#define WINDOW_HEIGHT 600
 
-typedef struct rgba_colors {
+
+
+const char *vertexShaderSource = "#version 330 core\n"
+                                 "layout (location = 0) in vec3 aPos;\n"
+                                 "void main()\n"
+                                 "{\n"
+                                 "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+                                 "}\0";
+
+const char *fragmentShaderSource = "#version 330 core\n"
+                                   "out vec4 FragColor;\n"
+                                   "\n"
+                                   "void main()\n"
+                                   "{\n"
+                                   "    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+                                   "}";
+
+typedef struct rgbaColors {
     float red;
     float green;
     float blue;
     float alpha;
 } rgba;
 
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
 }
+
 
 void processInput(GLFWwindow *window)
 {
@@ -27,6 +46,100 @@ void processInput(GLFWwindow *window)
         glfwSetWindowShouldClose(window, true);
     }
 }
+
+
+unsigned int bindVbo(float vertices[])
+{
+    unsigned int VBO, buffersToGenerate = 1;
+    glGenBuffers(buffersToGenerate, &VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, 36, vertices, GL_STATIC_DRAW);
+    return VBO;
+}
+
+
+unsigned int bindVao()
+{
+    unsigned int VAO, buffersToGenerate = 1;
+    glGenVertexArrays(buffersToGenerate, &VAO);
+    glBindVertexArray(VAO);
+    return VAO;
+}
+
+
+unsigned int compileVertexShader()
+{
+    int success;
+    char infoLog[512];
+    unsigned int vertexShader;
+    vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    glCompileShader(vertexShader);
+
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+
+    if (!success)
+    {
+        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+        printf("SHADER COMPILATION FAILED. LOG:\n%s\n", infoLog);
+    }
+
+    return vertexShader;
+}
+
+
+unsigned int compileFragmentShader()
+{
+    unsigned int fragmentShader;
+    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    glCompileShader(fragmentShader);
+
+    return fragmentShader;
+}
+
+
+unsigned int createShaderProgram()
+{
+    return glCreateProgram();
+}
+
+
+void linkShadersToShaderProgram(unsigned int vertexShader, unsigned int fragmentShader, unsigned int shaderProgram)
+{
+    int success;
+    char infoLog[512];
+
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+
+    if (!success)
+    {
+        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+        printf("SHADER PROGRAM LINKING FAILED. LOG:\n%s\n", infoLog);
+        return;
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+}
+
+
+void useProgram(unsigned int shaderProgram)
+{
+    glUseProgram(shaderProgram);
+}
+
+
+void interpretVertexData()
+{
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+}
+
 
 int main(void)
 {
@@ -41,7 +154,7 @@ int main(void)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "LearnOpenGL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "DVD Logo OpenGL", NULL, NULL);
 
     if (window == NULL)
     {
@@ -58,8 +171,28 @@ int main(void)
         return -1;
     }
 
-    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+
+    unsigned int shaderProgram = createShaderProgram();
+
+    unsigned int vertexShader = compileVertexShader();
+    unsigned int fragmentShader = compileFragmentShader();
+
+    linkShadersToShaderProgram(vertexShader, fragmentShader, shaderProgram);
+
+    // In OpenGL (or shaders) the x,y,z Cartesian plane is in the middle of the screen, meaning that
+    // upwards in the Y axis uses positive values.
+    float vertices[] = {
+            -0.5f, -0.5f, 0.0f,
+            0.5f, -0.5f, 0.0f,
+            0.0, 0.5f, 0.0f
+    };
+
+    unsigned int VBO, VAO;
+    VBO = bindVbo(vertices);
+    VAO = bindVao();
+
+    interpretVertexData();
 
     while(!glfwWindowShouldClose(window))
     {
@@ -68,9 +201,17 @@ int main(void)
         glClearColor(render_colors.red, render_colors.green, render_colors.blue, render_colors.alpha);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        useProgram(shaderProgram);
+        glBindVertexArray(VAO);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
         glfwSwapBuffers(window);
-        glfwPollEvents();    
+        glfwPollEvents();
     }
+
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteShader(shaderProgram);
 
     glfwTerminate();
     return 0;
